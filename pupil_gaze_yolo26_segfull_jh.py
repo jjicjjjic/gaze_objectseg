@@ -511,9 +511,18 @@ def main():
 
                 mask_hit = False
                 if masks is not None and i < masks.shape[0]:
-                    mh, mw = masks[i].shape[:2]
-                    if 0 <= int(gy) < mh and 0 <= int(gx) < mw:
-                        mask_hit = (masks[i, int(gy), int(gx)] > 0.5)
+                    mask_i = masks[i]
+
+                    # mask가 frame 크기와 다르면 resize 후 gaze hit 판정
+                    if mask_i.shape[:2] != frame.shape[:2]:
+                        mask_i = cv2.resize(
+                            mask_i.astype(np.float32),
+                            (frame.shape[1], frame.shape[0]),
+                            interpolation=cv2.INTER_LINEAR
+                        )
+
+                    if 0 <= int(gy) < frame.shape[0] and 0 <= int(gx) < frame.shape[1]:
+                        mask_hit = (mask_i[int(gy), int(gx)] > 0.5)
 
                 # 우선순위:
                 # 1) gaze 점이 full-frame mask 안에 있으면 최고
@@ -535,7 +544,18 @@ def main():
         if res is not None and best_i is not None:
             # full-frame mask overlay
             if masks is not None and best_i < masks.shape[0]:
-                mask_bool = masks[best_i] > 0.5
+                mask = masks[best_i]
+
+                # mask 해상도가 frame과 다르면 frame 크기로 맞춤
+                if mask.shape[:2] != vis.shape[:2]:
+                    mask = cv2.resize(
+                        mask.astype(np.float32),
+                        (vis.shape[1], vis.shape[0]),
+                        interpolation=cv2.INTER_LINEAR
+                    )
+
+                mask_bool = mask > 0.5
+
                 color_layer = vis.copy()
                 color_layer[mask_bool] = (0, 255, 255)
                 vis = cv2.addWeighted(color_layer, 0.40, vis, 0.60, 0)
