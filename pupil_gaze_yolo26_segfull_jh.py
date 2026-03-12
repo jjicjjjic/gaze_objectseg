@@ -510,6 +510,7 @@ def main():
                 d2 = (cx - gx) ** 2 + (cy - gy) ** 2
 
                 mask_hit = False
+                mask_area = None
                 if masks is not None and i < masks.shape[0]:
                     mask_i = masks[i]
 
@@ -521,19 +522,34 @@ def main():
                             interpolation=cv2.INTER_LINEAR
                         )
 
+                    mask_bool_i = mask_i > 0.5
+                    mask_area = float(mask_bool_i.sum())
+
+                    min_mask_area = 300
+                    if mask_area < min_mask_area:
+                        continue
+
+                    # gaze 점이 실제 mask 안에 있는지 판정
                     if 0 <= int(gy) < frame.shape[0] and 0 <= int(gx) < frame.shape[1]:
                         mask_hit = (mask_i[int(gy), int(gx)] > 0.5)
+
+                else:
+                    mask_area = float((x2 - x1) * (y2 - y1))  # fallback
+
+                conf_i = float(b.conf[0].item()) if hasattr(b, "conf") else 0.0
+
 
                 # 우선순위:
                 # 1) gaze 점이 full-frame mask 안에 있으면 최고
                 # 2) 아니면 gaze가 full-frame bbox 안에 있는 후보
                 # 3) 아니면 center_th 이내에서만 중심이 가장 가까운 후보
                 if mask_hit:
-                    score = 1e9 - d2
+                # 작은 물체 우선: area가 작을수록 score 증가
+                    score = 1e9 - 0.01 * mask_area - d2 + 10.0 * conf_i
                 elif inside:
-                    score = 1e6 - d2
+                    score = 1e6 - 0.001 * mask_area - d2 + 5.0 * conf_i
                 elif d2 <= center_th2:
-                    score = -d2
+                    score = -d2 - 0.0005 * mask_area + conf_i
                 else:
                     continue
 
